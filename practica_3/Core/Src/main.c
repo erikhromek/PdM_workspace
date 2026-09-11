@@ -34,7 +34,11 @@
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
 
-static const tick_t CYCLES[] = { 1000, 2000, 4000, 8000 };
+/*
+ * CYCLE_SEL se usa para ir iterando por los ciclos de ON-OFF
+ * LED_STATUS se utiliza para togglear el ON/OFF de un LED.
+ */
+static const tick_t CYCLES[] = { 500, 100, 100, 1000 };
 static uint8_t CYCLE_SEL = 0;
 static uint8_t LED_STATUS = 0;
 
@@ -96,6 +100,8 @@ int main(void) {
 	/* USER CODE BEGIN 2 */
 
 	delay_t delay;
+
+	/* Se inicializa delay y empieza a correr */
 	delayInit(&delay, CYCLES[CYCLE_SEL]);
 
 	/* USER CODE END 2 */
@@ -108,30 +114,31 @@ int main(void) {
 
 		/* USER CODE BEGIN 3 */
 
+		/*
+		 * Inicializa el delay si no lo está y chequea si ya terminó,
+		 * Cuando termina, hace toggle del led 2 y avanza el período
+		 * si ya hizo el ON/OFF del led.
+		 *
+		 */
 		delayRead(&delay);
-		if (LED_STATUS == 1) {
+		if (!delayIsRunning(&delay)) {
+			delayWrite(&delay, CYCLES[CYCLE_SEL]);
+			HAL_GPIO_TogglePin(LD2_GPIO_Port, LD2_Pin);
 
-			if (!delayIsRunning(&delay)) {
-				HAL_GPIO_TogglePin(LD2_GPIO_Port, LD2_Pin);
-				delayWrite(&delay, CYCLES[CYCLE_SEL]);
+			// Si ya cumplió los 2 ciclos de ON/OFF, avanzo el ciclo
+			if (LED_STATUS == 1) {
 				CYCLE_SEL++;
 				LED_STATUS = 0;
 			}
-
-		} else if (LED_STATUS == 0) {
-
-			if (!delayIsRunning(&delay)) {
-				delayWrite(&delay, CYCLES[CYCLE_SEL]);
+			else {
 				LED_STATUS++;
-				HAL_GPIO_TogglePin(LD2_GPIO_Port, LD2_Pin);
 			}
-		} else {
 
+			// Si llegamos al final del vector, reinicio la posición
+			if (CYCLE_SEL == sizeof(CYCLES) / sizeof(tick_t)) {
+				CYCLE_SEL = 0;
+			}
 		}
-		if (CYCLE_SEL == sizeof(CYCLES) / sizeof(tick_t)) {
-			CYCLE_SEL = 0;
-		}
-
 	}
 	/* USER CODE END 3 */
 }
