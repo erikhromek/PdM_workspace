@@ -16,6 +16,7 @@ typedef enum {
 
 static debounceState_t FSMcurrentState;
 
+
 void debounceFSM_init() {
 	/*
 	 * Presupone que el botón siempre arranca en UP, no presionado
@@ -26,18 +27,12 @@ void debounceFSM_init() {
 }
 
 bool_t readKey() {
-	if (!FSMcurrentState)
-		return false;
-
 	bool_t status = keyPressed;
 	keyPressed = false;
 	return status;
 }
 
 void debounceFSM_update() {
-	if (!FSMcurrentState)
-		return;
-
 	/*
 	 * Determina el estado de la FSM al estado actual y al estado del botón
 	 */
