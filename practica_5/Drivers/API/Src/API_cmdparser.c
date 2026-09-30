@@ -22,36 +22,63 @@ typedef enum {
 	ON, OFF, TOGGLE
 } ledState_t;
 
+static cmdParserState_t FSMcurrentState;
+
 #define MAX_COMMAND_LENGTH 64
 
-static cmdParserState_t FSMcurrentState;
+// Buffer para almacenar caracteres recibidos
 static uint8_t buf[CMD_MAX_LINE];
-static uint8_t commandBuf[MAX_COMMAND_LENGTH];
+
+// Almacena la posición actual del buffer
 static uint8_t currentIndex = 0;
-static int8_t currentCommandIndex = -1;
+
+/*
+ * String de comandos, para fácil edición contra el listado real.
+ * Podría armarse un string de forma dinámica.
+ */
 static uint8_t COMMAND_HELP[] =
 		"Command list: HELP,LED ON,LED OFF,LED TOGGLE,LED STATUS\r\n";
-static char *COMMANDS[] =
-		{ "HELP", "LED ON", "LED OFF", "LED TOGGLE", "LED STATUS" };
+static char *COMMANDS[] = { "HELP", "LED ON", "LED OFF", "LED TOGGLE",
+		"LED STATUS" };
+
+// Comando actual detectado. Se usa para recorrer COMMANDS[]
+static int8_t currentCommandIndex = -1;
+
 static ledState_t ledState;
 
 static const tick_t TOGGLE_CYCLE = 500;
-delay_t delay;
+static delay_t delay;
 
+static bool_t uartEnabled;
+
+/*
+ * @brief 	Inicializa parser de comandos, UART y delays internos para
+ * 			controlar el led
+ */
 void cmdParserInit() {
 	FSMcurrentState = CMD_IDLE;
 	ledState = OFF;
 	delayInit(&delay, TOGGLE_CYCLE);
-	uartInit();
+	uartEnabled = uartInit();
 }
-int8_t cmdProcessLine() {
+
+/**
+ * @fn uint8_t cmdProcessLine()
+ * @brief Procesa una línea e intenta obtener el comando recibido
+ *
+ * @return Devuelve el índice del comando en la posición de COMMANDS[]
+ * 			-2 si es un comentario y se debe ignorar
+ * 			-1 si no lo encontró (comando inválido(
+ */
+static uint8_t cmdProcessLine() {
+
 	static uint8_t arraySize = sizeof(COMMANDS) / sizeof(COMMANDS[0]);
 	int8_t indexFound = -1;
 	if (buf[0] == '#')
-		indexFound = -2; // Es un comentario. Ignorar línea.
+		indexFound = -2; // Es un comentario, ignorar línea.
 
 	for (uint8_t i = 0; i < arraySize; i++) {
-		if (strstr(buf, COMMANDS[i]) != NULL) {
+		if (strcmp(COMMANDS[i], buf) == 0) {
 			indexFound = i;
 			break;
 		}
@@ -60,7 +87,16 @@ int8_t cmdProcessLine() {
 
 }
 
+/**
+ * @fn void sendCMDStatus(cmd_status_t)
+ * @brief Envía por UART el resultado del comando
+ *
+ * @param status	Estados del parser
+ */
 static void sendCMDStatus(cmd_status_t status) {
+	if (!uartEnabled) {
+		return;
+	}
 	switch (status) {
 	case CMD_OK:
 		uartSendString("COMMAND OK\r\n");
@@ -82,41 +118,31 @@ static void sendCMDStatus(cmd_status_t status) {
 	}
 }
 
+/*
+ * @brief 	Reinicializa el estado interno del parser, limpia buffers internos
+ */
 void resetState() {
 	FSMcurrentState = CMD_IDLE;
 	for (uint8_t i = 0; i < CMD_MAX_LINE; i++)
 		buf[i] = '\0';
 
-	for (uint8_t i = 0; i < MAX_COMMAND_LENGTH; i++)
-		commandBuf[i] = '\0';
-
 	currentIndex = 0;
 	currentCommandIndex = -1;
 }
 
-bool isValid(uint8_t c) {
-	/* Permite:
-	 * a-z
-	 * A-Z
-	 * #
-	 * CR
-	 * LF
-	 * SP
-	 */
-
-	if ((c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z') || (c == ' ')
-			|| (c == '\r') || (c == '\n') || (c == '#') || (c == '/'))
-		return true;
-	else
-		return false;
-}
 
 void sendHelp() {
+	if (!uartEnabled) {
+		return;
+	}
 	sendCMDStatus(CMD_OK);
 	uartSendString(COMMAND_HELP);
 }
 
 void enableLED() {
+	if (!uartEnabled) {
+		return;
+	}
 	HAL_GPIO_WritePin(LD2_GPIO_Port, LD2_Pin, GPIO_PIN_SET);
 	ledState = ON;
 	sendCMDStatus(CMD_OK);
@@ -124,6 +150,9 @@ void enableLED() {
 }
 
 void disableLED() {
+	if (!uartEnabled) {
+		return;
+	}
 	HAL_GPIO_WritePin(LD2_GPIO_Port, LD2_Pin, GPIO_PIN_RESET);
 	ledState = OFF;
 	sendCMDStatus(CMD_OK);
@@ -132,12 +161,18 @@ void disableLED() {
 }
 
 void toggleLED() {
+	if (!uartEnabled) {
+		return;
+	}
 	ledState = TOGGLE;
 	sendCMDStatus(CMD_OK);
 	uartSendString("LED IS BLINKING\r\n");
 }
 
 void sendLEDStatus() {
+	if (!uartEnabled) {
+		return;
+	}
 	switch (ledState) {
 	case ON:
 		sendCMDStatus(CMD_OK);
@@ -156,7 +191,20 @@ void sendLEDStatus() {
 	}
 }
 
+/**
+ * @fn void cmdPoll(void)
+ * @brief Chequea por caracteres recibidos del buffer y se encarga del loop
+ *			del blink del LED
+ *
+ * @pre
+ * @post
+ */
 void cmdPoll(void) {
+	if (!uartEnabled) {
+		return;
+	}
+
+	// Chequea por el estado del LED
 	if (ledState == TOGGLE) {
 		if (!delayIsRunning(&delay)) {
 			delayWrite(&delay, TOGGLE_CYCLE);
@@ -166,17 +214,34 @@ void cmdPoll(void) {
 
 	uint8_t c;
 	uartReceiveStringSize(&c, 1);
+	/*
+	 * Recibe un caracter y realiza lo siguiente:
+	 * 1. chequea que no sea nulo, si no, lo ignora
+	 * 2. chequea que sea un caracter válido antes de guardarlo en el buffer e
+	 *    incrementar el índide
+	 * 3. si detecta que es un CR o LF, pasa al siguiente estado
+	 * 4. luego, determina a qué comando corresponde y en caso de éxito, pasa
+	 *    al siguiente estado, si no, da error
+	 * 5. ejecuta el comando corresponde y reinicia el estado del parser
+	 */
 	if (c != '\0') {
 		switch (FSMcurrentState) {
+		case CMD_ERROR:
+			if (currentIndex >= CMD_MAX_LINE) {
+				sendCMDStatus(CMD_ERR_OVERFLOW);
+			} else
+				sendCMDStatus(CMD_ERR_SYNTAX);
+			resetState();
+			break;
 		case CMD_IDLE:
-			if (c != '\r' && c != '\n' && isValid(c)) {
+			if (c != '\r' && c != '\n') {
 				FSMcurrentState = CMD_RECEIVING;
 				buf[currentIndex] = c;
 				currentIndex++;
 			}
 			break;
 		case CMD_RECEIVING:
-			if (c != '\r' && c != '\n' && isValid(c)) {
+			if (c != '\r' && c != '\n') {
 				if (currentIndex < CMD_MAX_LINE) {
 					buf[currentIndex] = c;
 					currentIndex++;
@@ -224,17 +289,9 @@ void cmdPoll(void) {
 				resetState();
 				break;
 			default:
-				sendCMDStatus(CMD_ERR_SYNTAX);
-				resetState();
+				FSMcurrentState = CMD_ERROR;
 				break;
 			}
-			break;
-		case CMD_ERROR:
-			if (currentIndex >= CMD_MAX_LINE)
-				sendCMDStatus(CMD_ERR_OVERFLOW);
-			else
-				sendCMDStatus(CMD_ERR_SYNTAX);
-			resetState();
 			break;
 		default:
 			cmdParserInit();

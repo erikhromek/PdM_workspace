@@ -89,6 +89,7 @@ int main(void) {
 	//MX_USART2_UART_Init();
 	/* USER CODE BEGIN 2 */
 
+	// Incluye inicialización de UART
 	cmdParserInit();
 
 	/* USER CODE END 2 */
@@ -99,6 +100,10 @@ int main(void) {
 	while (1) {
 		/* USER CODE END WHILE */
 
+		/*
+		 * Se encarga de leer comandos  y ejecutarlos, incluyendo la gestión
+		 * del LED
+		*/
 		cmdPoll();
 
 		/* USER CODE BEGIN 3 */

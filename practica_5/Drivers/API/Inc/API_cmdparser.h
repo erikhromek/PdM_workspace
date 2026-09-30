@@ -27,7 +27,8 @@ void cmdParserInit(void);
 /**
  * @fn void cmdPoll(void)
  * @brief Máquina de estados del parser. Debe ser llamada periódicamente desde
- * 	      el bucle. Procesa hasta 16 bytes por invocación.
+ * 	      el bucle. Procesa hasta 1 byte por invocación. Máximo líneas de 64
+ * 	      caracteres.
  *
  * @pre
  * @post
