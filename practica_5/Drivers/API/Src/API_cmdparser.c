@@ -87,6 +87,23 @@ static uint8_t cmdProcessLine() {
 
 }
 
+bool isValid(uint8_t c) {
+	/* Permite:
+	 * a-z
+	 * A-Z
+	 * #
+	 * CR
+	 * LF
+	 * SP
+	 */
+
+	if ((c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z') || (c == ' ')
+			|| (c == '\r') || (c == '\n') || (c == '#') || (c == '/'))
+		return true;
+	else
+		return false;
+}
+
 /**
  * @fn void sendCMDStatus(cmd_status_t)
  * @brief Envía por UART el resultado del comando
@@ -234,14 +251,14 @@ void cmdPoll(void) {
 			resetState();
 			break;
 		case CMD_IDLE:
-			if (c != '\r' && c != '\n') {
+			if (c != '\r' && c != '\n' && isValid(c)) {
 				FSMcurrentState = CMD_RECEIVING;
 				buf[currentIndex] = c;
 				currentIndex++;
 			}
 			break;
 		case CMD_RECEIVING:
-			if (c != '\r' && c != '\n') {
+			if (c != '\r' && c != '\n' && isValid(c)) {
 				if (currentIndex < CMD_MAX_LINE) {
 					buf[currentIndex] = c;
 					currentIndex++;
@@ -249,7 +266,7 @@ void cmdPoll(void) {
 					FSMcurrentState = CMD_ERROR;
 				}
 
-			} else {
+			} else if (c == '\r' || c == '\n') {
 				buf[currentIndex] = '\0';
 				FSMcurrentState = CMD_PROCESS;
 			}
