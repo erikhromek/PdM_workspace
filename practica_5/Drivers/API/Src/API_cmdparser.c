@@ -30,9 +30,9 @@ static uint8_t commandBuf[MAX_COMMAND_LENGTH];
 static uint8_t currentIndex = 0;
 static int8_t currentCommandIndex = -1;
 static uint8_t COMMAND_HELP[] =
-		"Command list: HELP,LED ON,LED OFF,LED TOGGLE,STATUS\r\n";
+		"Command list: HELP,LED ON,LED OFF,LED TOGGLE,LED STATUS\r\n";
 static char *COMMANDS[] =
-		{ "HELP", "LED ON", "LED OFF", "LED TOGGLE", "STATUS" };
+		{ "HELP", "LED ON", "LED OFF", "LED TOGGLE", "LED STATUS" };
 static ledState_t ledState;
 
 static const tick_t TOGGLE_CYCLE = 500;
