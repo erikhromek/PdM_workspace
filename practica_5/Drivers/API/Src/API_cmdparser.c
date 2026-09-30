@@ -78,7 +78,7 @@ static uint8_t cmdProcessLine() {
 		indexFound = -2; // Es un comentario, ignorar línea.
 
 	for (uint8_t i = 0; i < arraySize; i++) {
-		if (strcmp(COMMANDS[i], buf) == 0) {
+		if (strcmp(buf, COMMANDS[i]) == 0) {
 			indexFound = i;
 			break;
 		}
@@ -146,7 +146,6 @@ void resetState() {
 	currentIndex = 0;
 	currentCommandIndex = -1;
 }
-
 
 void sendHelp() {
 	if (!uartEnabled) {
@@ -229,7 +228,7 @@ void cmdPoll(void) {
 		}
 	}
 
-	uint8_t c;
+	uint8_t c = '\0';
 	uartReceiveStringSize(&c, 1);
 	/*
 	 * Recibe un caracter y realiza lo siguiente:
@@ -241,79 +240,77 @@ void cmdPoll(void) {
 	 *    al siguiente estado, si no, da error
 	 * 5. ejecuta el comando corresponde y reinicia el estado del parser
 	 */
-	if (c != '\0') {
-		switch (FSMcurrentState) {
-		case CMD_ERROR:
-			if (currentIndex >= CMD_MAX_LINE) {
-				sendCMDStatus(CMD_ERR_OVERFLOW);
-			} else
-				sendCMDStatus(CMD_ERR_SYNTAX);
-			resetState();
-			break;
-		case CMD_IDLE:
-			if (c != '\r' && c != '\n' && isValid(c)) {
-				FSMcurrentState = CMD_RECEIVING;
+	switch (FSMcurrentState) {
+	case CMD_ERROR:
+		if (currentIndex >= CMD_MAX_LINE) {
+			sendCMDStatus(CMD_ERR_OVERFLOW);
+		} else
+			sendCMDStatus(CMD_ERR_SYNTAX);
+		uartSendString(buf);
+		resetState();
+		break;
+	case CMD_IDLE:
+		if (c != '\r' && c != '\n' && isValid(c)) {
+			FSMcurrentState = CMD_RECEIVING;
+			buf[currentIndex] = c;
+			currentIndex++;
+		}
+		break;
+	case CMD_RECEIVING:
+		if (c != '\r' && c != '\n' && isValid(c)) {
+			if (currentIndex < CMD_MAX_LINE) {
 				buf[currentIndex] = c;
 				currentIndex++;
-			}
-			break;
-		case CMD_RECEIVING:
-			if (c != '\r' && c != '\n' && isValid(c)) {
-				if (currentIndex < CMD_MAX_LINE) {
-					buf[currentIndex] = c;
-					currentIndex++;
-				} else {
-					FSMcurrentState = CMD_ERROR;
-				}
-
-			} else if (c == '\r' || c == '\n') {
-				buf[currentIndex] = '\0';
-				FSMcurrentState = CMD_PROCESS;
-			}
-			break;
-		case CMD_PROCESS:
-			currentCommandIndex = cmdProcessLine();
-			if (currentCommandIndex != -1) {
-				FSMcurrentState = CMD_EXEC;
 			} else {
 				FSMcurrentState = CMD_ERROR;
 			}
+
+		} else if (c == '\r' || c == '\n') {
+			buf[currentIndex] = '\0';
+			FSMcurrentState = CMD_PROCESS;
+		}
+		break;
+	case CMD_PROCESS:
+		currentCommandIndex = cmdProcessLine();
+		if (currentCommandIndex != -1) {
+			FSMcurrentState = CMD_EXEC;
+		} else {
+			FSMcurrentState = CMD_ERROR;
+		}
+		break;
+	case CMD_EXEC:
+		switch (currentCommandIndex) {
+		case -2:
+			resetState();
 			break;
-		case CMD_EXEC:
-			switch (currentCommandIndex) {
-			case -2:
-				resetState();
-				break;
-			case 0:
-				sendHelp();
-				resetState();
-				break;
-			case 1:
-				// Activar LED
-				enableLED();
-				resetState();
-				break;
-			case 2:
-				disableLED();
-				resetState();
-				break;
-			case 3:
-				toggleLED();
-				resetState();
-				break;
-			case 4:
-				sendLEDStatus();
-				resetState();
-				break;
-			default:
-				FSMcurrentState = CMD_ERROR;
-				break;
-			}
+		case 0:
+			sendHelp();
+			resetState();
+			break;
+		case 1:
+			// Activar LED
+			enableLED();
+			resetState();
+			break;
+		case 2:
+			disableLED();
+			resetState();
+			break;
+		case 3:
+			toggleLED();
+			resetState();
+			break;
+		case 4:
+			sendLEDStatus();
+			resetState();
 			break;
 		default:
-			cmdParserInit();
+			FSMcurrentState = CMD_ERROR;
 			break;
 		}
-
+		break;
+	default:
+		cmdParserInit();
+		break;
 	}
 }
