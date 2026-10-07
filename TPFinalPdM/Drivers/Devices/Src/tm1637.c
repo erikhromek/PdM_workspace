@@ -14,34 +14,63 @@ static uint16_t data_pin;
 static uint16_t clk_pin;
 
 /* 0xXgfedcba */
-#define ZERO 0x00111111
-#define ONE 0x00000110
-#define TWO 0x01011011
-#define THREE 0x01001111
-#define FOUR 0x01100110
-#define FIVE 0x01101101
-#define SIX 0x01111100
-#define SEVEN 0x00000111
-#define EIGHT 0x01111111
-#define NINE 0x01100111
+// TODO COULD BE AN ARRAY
+#define ZERO 0b00111111
+#define ONE 0b00000110
+#define TWO 0b01011011
+#define THREE 0b01001111
+#define FOUR 0b01100110
+#define FIVE 0b01101101
+#define SIX 0b01111100
+#define SEVEN 0b00000111
+#define EIGHT 0b01111111
+#define NINE 0b01100111ve
+#define BLANK 0b00000000
+
+#define AUTO_MODE 0x40
+// TODO COULD BE AN ARRAY
+#define FIRST_DIGIT_ADDRESS 0xC0
+#define SECOND_DIGIT_ADDRESS 0xC1
+#define THIRD_DIGIT_ADDRESS 0xC2
+#define FOURTH_DIGIT_ADDRESS 0xC3
+
+#define BRIGHTNESS_COMMAND 0x8F // 0b10001XXX Last 3 digits set BRIGHTNESS
+
+static uint8_t currentSegment[] = { 0, 0, 0, 0 };
 
 void tm1637Init(uint16_t data_gpio, uint16_t clk_gpio, TIM_TypeDef tim) {
 	bool result = false;
 
+	data_pin = data_gpio;
+	clk_pin = clk_gpio;
+
 	__HAL_RCC_GPIOA_CLK_ENABLE();
 
 	/**
-	 * Configure GPIO as OUTPUT
-	*/
+	 * Configure DATA PGIO as OUTPUT
+	 */
 
 	GPIO_InitTypeDef GPIO_InitStruct = { 0 };
-	GPIO_InitStruct.Pin = pin;
+	GPIO_InitStruct.Pin = data_pin;
 	GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
 	GPIO_InitStruct.Pull = GPIO_NOPULL;
 	GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
 	HAL_GPIO_Init(LCD_CS_GPIO_Port, &GPIO_InitStruct);
 
-	HAL_GPIO_WritePin(GPIOA, pin, GPIO_PIN_RESET);
+	HAL_GPIO_WritePin(GPIOA, data_pin, GPIO_PIN_RESET);
+
+	/**
+	 * Configure CLK PGIO as OUTPUT
+	 */
+
+	GPIO_InitTypeDef GPIO_InitStruct = { 0 };
+	GPIO_InitStruct.Pin = clk_pin;
+	GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
+	GPIO_InitStruct.Pull = GPIO_NOPULL;
+	GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
+	HAL_GPIO_Init(LCD_CS_GPIO_Port, &GPIO_InitStruct);
+
+	HAL_GPIO_WritePin(GPIOA, clk_pin, GPIO_PIN_RESET);
 
 	/* ===================================================================== */
 
@@ -76,8 +105,6 @@ void tm1637Init(uint16_t data_gpio, uint16_t clk_gpio, TIM_TypeDef tim) {
 		result = false;
 	} else {
 		HAL_TIM_Base_Start(&htim);
-		data_pin = data_gpio;
-		clk_pin = clk_gpio;
 		result = true;
 	}
 
@@ -106,18 +133,27 @@ static uint8_t tm1637NumberToDigit(uint8_t number) {
 	if (number == 9)
 		return NINE;
 
+	return BLANK;
+
 }
 
-static uint8_t* numberToRawData(uint16_t number)
-{
+static uint8_t* numberToRawData(uint16_t number, uint8_t *rawData) {
 	/**
 	 * Number can be up to 9999. We start dividing each number by 10 up to
 	 * four times to get each digit
-	*/
-	uint8_t rawData[] = { 0, 0, 0, 0};
+	 */
+	uint16_t currentNumber = number;
+	for (uint8_t i = 0; i < 4; i++) {
+		rawData[i] = currentNumber / (10 * *(3 - i));
+		currentNumber = currentNumber - rawData[i] * 10 * *(3 - i);
+	}
+
+	for (uint8_t i = 0; i < 4; i++) {
+		rawData[i] = tm1637NumberToDigit(rawData[i]);
+	}
 }
 
-void tm1637WriteSegments(uint16_t number, bool enableDots) {
+void tm1637WriteNumber(uint16_t number) {
 
 	/**
 	 * 1) Start Sequence
@@ -128,9 +164,132 @@ void tm1637WriteSegments(uint16_t number, bool enableDots) {
 	 * Source: https://controllerstech.com/interface-7-segment-display-with-stm32-tm1637/
 	 */
 
+	numberToRawData(number, currentSegment);
+
+	sendStartSequence();
+	readACK();
+	writeRawData(currentSegment);
+	sendStopSequence();
 
 }
 
-void tm1637Clear(void)() {
+static void readACK() {
+	/**
+	 * 1) Put CLK LOW
+	 * 2) Set DATA GPIO as INPUT and wait for it to be LOW
+	 * 3) Wait 5 us
+	 * 4) Put CLK HIGH
+	 * 5) Wait 2 ms
+	 * 6) Put CLK LOW
+	 *
+	 */
 
+	HAL_GPIO_WritePin(GPIOA, clk_pin, GPIO_PIN_RESET);
+
+	GPIO_InitTypeDef GPIO_InitStruct = { 0 };
+	GPIO_InitStruct.Pin = data_pin;
+	GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
+	GPIO_InitStruct.Pull = GPIO_NOPULL;
+	GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
+	HAL_GPIO_Init(LCD_CS_GPIO_Port, &GPIO_InitStruct);
+
+	delay_us(5);
+
+	uint8_t maxWait = 0;
+
+	do {
+		if (maxWait > 10) {
+			// ABORT, TIMEOUT, NO ACK!
+			return;
+		}
+		maxWait++;
+		delay_us(1);
+	}
+	while (HAL_GPIO_ReadPin(GPIOA, data_pin));
+
+	HAL_GPIO_WritePin(GPIOA, clk_pin, GPIO_PIN_SET);
+
+	delay_us(2);
+
+	HAL_GPIO_WritePin(GPIOA, clk_pin, GPIO_PIN_RESET);
+
+	GPIO_InitTypeDef GPIO_InitStruct = { 0 };
+	GPIO_InitStruct.Pin = data_pin;
+	GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
+	GPIO_InitStruct.Pull = GPIO_NOPULL;
+	GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
+	HAL_GPIO_Init(LCD_CS_GPIO_Port, &GPIO_InitStruct);
+
+}
+
+static void sendStopSequence() {
+	/**
+	 * 1) Put CLK HIGH
+	 * 2) Wait 2 us
+	 * 3) Put DATA LOW
+	 * 4) Wait 2 us
+	 * 5) Put CLK HIGH
+	 * 6) Wait 2 us
+	 * 7) Put DATA HIGH
+	 */
+
+	HAL_GPIO_WritePin(GPIOA, clk_pin, GPIO_PIN_RESET);
+	delay_us(2);
+	HAL_GPIO_WritePin(GPIOA, data_pin, GPIO_PIN_RESET);
+	delay_us(2);
+	HAL_GPIO_WritePin(GPIOA, clk_pin, GPIO_PIN_SET);
+	delay_us(2);
+	HAL_GPIO_WritePin(GPIOA, data_pin, GPIO_PIN_SET);
+}
+
+static void writeRawData(uint8_t *rawData) {
+
+	/**
+	 * 1) Send Start Sequence
+	 * 2) Send AUTO ADDRESS INCREMENT command
+	 * 3) ReadACK
+	 * 4) Write every byte of rawData and ReadACK
+	 * 5) Send Stop Sequence
+	 */
+
+}
+
+static void sendStartSequence() {
+	/**
+	 * 1) Put CLK HIGH
+	 * 2) Put DATA HIGH
+	 * 3) Wait 2 us
+	 * 4) Put DATA LOW
+	 */
+
+	HAL_GPIO_WritePin(GPIOA, clk_pin, GPIO_PIN_SET);
+	HAL_GPIO_WritePin(GPIOA, data_pin, GPIO_PIN_SET);
+	delay_us(2);
+	HAL_GPIO_WritePin(GPIOA, data_pin, GPIO_PIN_RESET);
+
+}
+
+void tm1637Clear(void) {
+	static const uint8_t rawData[] = { 0x00, 0x00, 0x00, 0x00 };
+
+	writeRawData(*rawData);
+}
+
+/**
+ * @fn void delay_us(uint16_t)
+ * @brief Generates a delay
+ *
+ * @pre timer must be initialized
+ * @param us delay in microseconds
+ */
+static void delay_us(uint16_t us) {
+	/**
+	 * Source: https://controllerstech.com/create-microsecond-delay-stm32/
+	 */
+
+	if (htim == NULL)
+		return;
+	__HAL_TIM_SET_COUNTER(&htim, 0);
+	while (__HAL_TIM_GET_COUNTER(&htim) < us)
+		;
 }
