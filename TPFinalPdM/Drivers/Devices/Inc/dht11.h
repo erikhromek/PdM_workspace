@@ -1,3 +1,9 @@
+#ifndef DHT11_H_
+#define DHT11_H_
+
+#include <stdbool.h>
+#include "stm32f4xx_hal.h"
+
 typedef struct {
    uint8_t temperature;
    uint8_t humidity;
@@ -11,9 +17,9 @@ typedef struct {
  * @pre
  * @post
  */
-void dht11Init(uint16_t gpio, TIM_TypeDef tim);
-static bool dht11Read(); // Realiza lectura
+bool dht11Init(GPIO_TypeDef *dataPort, uint16_t dataPin);
+bool dht11Read(void); // Realiza lectura
 void getLatestRead(dht11Data_t *data); // Devuelve lectura del sensor
 
 
-
+#endif /* DHT11_H_ */

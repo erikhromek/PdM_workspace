@@ -58,4 +58,22 @@ void delayWrite(delay_t *delay, tick_t duration);
  */
 bool_t delayIsRunning(delay_t *delay);
 
+/**
+ * @fn void delayUsInit(void)
+ * @brief Initializes microseconds blocking delay using DWT
+ * Source: https://deepbluembedded.com/stm32-delay-microsecond-millisecond-utility-dwt-delay-timer-delay/
+ *
+ */
+void delayUsInit(void);
+
+/**
+ * @fn void delay_us(uint32_t us)
+ *
+ * @brief Waits for the specified microseconds
+ *
+ * @param duration	Delay duration (in microseconds)
+ *
+ */
+void delay_us(uint32_t duration);
+
 #endif /* API_INC_API_DELAY_H_ */
