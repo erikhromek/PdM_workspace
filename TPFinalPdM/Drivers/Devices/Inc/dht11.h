@@ -19,7 +19,7 @@ typedef struct {
  */
 bool dht11Init(GPIO_TypeDef *dataPort, uint16_t dataPin);
 bool dht11Read(void); // Realiza lectura
-void getLatestRead(dht11Data_t *data); // Devuelve lectura del sensor
+void dht11LatestRead(dht11Data_t *data); // Devuelve lectura del sensor
 
 
 #endif /* DHT11_H_ */

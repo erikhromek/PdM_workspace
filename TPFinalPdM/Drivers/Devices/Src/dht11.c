@@ -13,7 +13,7 @@
 static GPIO_TypeDef *data_port;
 static uint16_t data_pin;
 
-static dht11Data_t latestRead;
+static dht11Data_t latestRead = { 0, 0};
 
 bool dht11Init(GPIO_TypeDef *dataPort, uint16_t dataPin) {
 	bool result = false;
@@ -83,6 +83,8 @@ bool dht11Read(void) {
 	 */
 
 	uint8_t waitTime = 0;
+
+	__disable_irq();
 	while (HAL_GPIO_ReadPin(data_port, data_pin) == GPIO_PIN_SET) {
 		delay_us(1);
 		waitTime++;
@@ -166,6 +168,8 @@ bool dht11Read(void) {
 			bitPosition = 7;
 	}
 
+	__enable_irq();
+
 	if (validateChecksum(dataRaw)) {
 		// Ignore decimal part
 		latestRead.humidity = dataRaw[0];
@@ -179,7 +183,7 @@ bool dht11Read(void) {
 	}
 }
 
-void getLatestRead(dht11Data_t *data) {
+void dht11LatestRead(dht11Data_t *data) {
 	data->temperature = latestRead.temperature;
 	data->humidity = latestRead.humidity;
 }
