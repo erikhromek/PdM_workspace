@@ -13,7 +13,7 @@
 static GPIO_TypeDef *data_port;
 static uint16_t data_pin;
 
-static dht11Data_t latestRead = { 0, 0};
+static dht11Data_t latestRead = { 0, 0 };
 
 bool dht11Init(GPIO_TypeDef *dataPort, uint16_t dataPin) {
 	bool result = false;
@@ -69,10 +69,13 @@ bool dht11Read(void) {
 	 * 7) verify checksum
 	 */
 
+	const uint32_t cyclesPerUs = SystemCoreClock / 1000000U;
+
 	HAL_GPIO_WritePin(data_port, data_pin, GPIO_PIN_RESET);
 
 	HAL_Delay(20);
 
+	__disable_irq();
 	HAL_GPIO_WritePin(data_port, data_pin, GPIO_PIN_SET);
 
 	/**
@@ -82,43 +85,39 @@ bool dht11Read(void) {
 	 * 2) Read HIGH for 80 us
 	 */
 
-	uint8_t waitTime = 0;
+	uint32_t start = DWT->CYCCNT;
 
-	__disable_irq();
+
 	while (HAL_GPIO_ReadPin(data_port, data_pin) == GPIO_PIN_SET) {
-		delay_us(1);
-		waitTime++;
-		if (waitTime >= 40) {
-			__enable_irq();
+		// 100 us timeout
+		if ((DWT->CYCCNT - start) > 120U * cyclesPerUs) {
 			// ABORT, TIMEOUT. DID NOT GO FROM HIGH TO LOW
+			__enable_irq();
+			return false;
+		}
+
+	}
+
+	start = DWT->CYCCNT;
+
+	while (HAL_GPIO_ReadPin(data_port, data_pin) == GPIO_PIN_RESET) {
+		// 100 us timeout
+		if ((DWT->CYCCNT - start) > 120U * cyclesPerUs) {
+			// ABORT, TIMEOUT. DID NOT GO FROM HIGH TO LOW
+			__enable_irq();
 			return false;
 		}
 	}
 
-	waitTime = 0;
+	start = DWT->CYCCNT;
 
-	while ((HAL_GPIO_ReadPin(data_port, data_pin) == GPIO_PIN_RESET)
-			&& waitTime < 90) {
-		delay_us(1);
-		waitTime++;
-	}
-	if (waitTime >= 90) {
-		__enable_irq();
-		// ABORT, TIMEOUT
-		return false;
-	}
-
-	waitTime = 0;
-
-	while ((HAL_GPIO_ReadPin(data_port, data_pin) == GPIO_PIN_SET)
-			&& waitTime < 90) {
-		delay_us(1);
-		waitTime++;
-	}
-	if (waitTime >= 90) {
-		__enable_irq();
-		// ABORT, TIMEOUT
-		return false;
+	while (HAL_GPIO_ReadPin(data_port, data_pin) == GPIO_PIN_SET) {
+		// 100 us timeout
+		if ((DWT->CYCCNT - start) > 120U * cyclesPerUs) {
+			// ABORT, TIMEOUT. DID NOT GO FROM HIGH TO LOW
+			__enable_irq();
+			return false;
+		}
 	}
 
 	/**
@@ -139,32 +138,27 @@ bool dht11Read(void) {
 
 	int8_t bitPosition = 7;
 	for (uint8_t i = 0; i < 40; i++) {
-		waitTime = 0;
-		uint8_t bit = 0;
+		start = DWT->CYCCNT;
 		do {
-			waitTime++;
-			if (waitTime > 50) {
+			if ((DWT->CYCCNT - start) > 100U * cyclesPerUs) {
+				// ABORT. DID NOT GO HIGH
 				__enable_irq();
-				// ABORT, TIMEOUT
 				return false;
 			}
-			delay_us(1);
+
 		} while (HAL_GPIO_ReadPin(data_port, data_pin) == GPIO_PIN_RESET ? 1 : 0);
 
-		waitTime = 0;
+		start = DWT->CYCCNT;
 
 		while (HAL_GPIO_ReadPin(data_port, data_pin) == GPIO_PIN_SET) {
-			if (waitTime > 30) {
-				bit = 1;
-			}
-			delay_us(1);
-			waitTime++;
-			if (waitTime > 90) {
+			// MAX 120 US TIMEOUT
+			if ((DWT->CYCCNT - start) > 120U * cyclesPerUs) {
 				__enable_irq();
-				// ABORT, TIMEOUT. MAX 70 US
 				return false;
 			}
 		}
+		uint32_t highCycles = DWT->CYCCNT - start;
+		uint8_t bit = (highCycles > 47U * cyclesPerUs) ? 1 : 0;
 		currentByte = (i / 8);
 		dataRaw[currentByte] |= (bit << bitPosition);
 

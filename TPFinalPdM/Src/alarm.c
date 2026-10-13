@@ -76,7 +76,7 @@ void alarmUpdate(uint8_t temperature) {
 			disableBuzzer();
 		break;
 	case ALARM_ON:
-		if (alarmThreshold <= temperature) {
+		if (temperature < alarmThreshold) {
 			disableBuzzer();
 			alarmState = ALARM_CONFIGURED;
 		} else
