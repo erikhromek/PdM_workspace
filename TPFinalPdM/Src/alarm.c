@@ -20,7 +20,7 @@ static void disableBuzzer() {
 
 void alarmInit(GPIO_TypeDef *buzzerPort, uint16_t buzzerPin) {
 
-	buzzer_port = dataPort;
+	buzzer_port = buzzerPort;
 	buzzer_pin = buzzerPin;
 
 	if (buzzerPort == GPIOA)
@@ -31,7 +31,7 @@ void alarmInit(GPIO_TypeDef *buzzerPort, uint16_t buzzerPin) {
 		__HAL_RCC_GPIOC_CLK_ENABLE();
 
 	GPIO_InitTypeDef gpio = { 0 };
-	gpio.Mode = GPIO_MODE_OUTPUT_OD;
+	gpio.Mode = GPIO_MODE_OUTPUT_PP;
 	gpio.Pull = GPIO_NOPULL;
 	gpio.Speed = GPIO_SPEED_FREQ_LOW;
 
@@ -49,9 +49,8 @@ void incrementAlarmThreshold() {
 		alarmThreshold = 0;
 }
 void decrementAlarmThreshold() {
-	alarmThreshold--;
-	if (alarmThreshold < 0)
-		alarmThreshold = 0;
+	if (alarmThreshold > 0)
+		alarmThreshold--;
 }
 uint8_t getAlarmThreshold() {
 	return alarmThreshold;
@@ -60,16 +59,17 @@ void alarmToggle() {
 	if (alarmState == ALARM_CONFIGURED || alarmState == ALARM_ON)
 		alarmState = ALARM_DISABLED;
 	else if (alarmState == ALARM_DISABLED)
-		ALARM_CONFIGURED;
+		alarmState = ALARM_CONFIGURED;
 
 }
 // Actualiza la MEF de la alarma
 void alarmUpdate(uint8_t temperature) {
 	switch (alarmState) {
 	case ALARM_DISABLED:
+		disableBuzzer();
 		break;
 	case ALARM_CONFIGURED:
-		if (alarmThreshold > temperature) {
+		if (temperature >= alarmThreshold) {
 			enableBuzzer();
 			alarmState = ALARM_ON;
 		} else

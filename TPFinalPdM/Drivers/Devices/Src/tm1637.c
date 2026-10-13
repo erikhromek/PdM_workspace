@@ -29,45 +29,27 @@ static const uint8_t DIGITS[] = { 0b00111111, 0b00000110, 0b01011011,
 #define THIRD_DIGIT_ADDRESS 0xC2
 #define FOURTH_DIGIT_ADDRESS 0xC3
 
-#define BRIGHTNESS_COMMAND 0x8F // 0b10001XXX Last 3 digits set BRIGHTNESS
+#define BRIGHTNESS_MASK 0x88 // 0b10001XXX Last 3 digits set BRIGHTNESS
 
 static uint8_t currentSegment[] = { 0, 0, 0, 0 };
 
-static void readACK() {
-	/**
-	 * 1) Put CLK LOW
-	 * 2) Set DATA GPIO as INPUT and wait for it to be LOW
-	 * 3) Wait 5 us
-	 * 4) Put CLK HIGH
-	 * 5) Wait 2 ms
-	 * 6) Put CLK LOW
-	 *
-	 */
-
-	HAL_GPIO_WritePin(clk_port, clk_pin, GPIO_PIN_RESET);
-
-	// This frees DATA DPIO
-	HAL_GPIO_WritePin(data_port, data_pin, GPIO_PIN_SET);
-
-	delay_us(5);
-
-	uint8_t maxWait = 0;
-
-	do {
-		if (maxWait > 10) {
-			// ABORT, TIMEOUT, NO ACK!
-			return;
-		}
-		maxWait++;
-		delay_us(1);
-	} while (HAL_GPIO_ReadPin(data_port, data_pin));
-
-	HAL_GPIO_WritePin(clk_port, clk_pin, GPIO_PIN_RESET);
-
-	delay_us(2);
-
-
+static void configurePinAsOutput(GPIO_TypeDef *port, uint16_t pin) {
+	GPIO_InitTypeDef g = {0};
+	g.Pin = pin;
+	g.Mode = GPIO_MODE_OUTPUT_PP;
+	g.Pull = GPIO_NOPULL;
+	g.Speed = GPIO_SPEED_FREQ_HIGH;
+	HAL_GPIO_Init(port, &g);
 }
+
+static void configurePinAsInput(GPIO_TypeDef *port, uint16_t pin) {
+	GPIO_InitTypeDef g = {0};
+	g.Pin = pin;
+	g.Mode = GPIO_MODE_INPUT;
+	g.Pull = GPIO_PULLUP;
+	HAL_GPIO_Init(port, &g);
+}
+
 static void sendStartSequence() {
 	/**
 	 * 1) Put CLK HIGH
@@ -103,6 +85,49 @@ static void sendStopSequence() {
 	HAL_GPIO_WritePin(data_port, data_pin, GPIO_PIN_SET);
 }
 
+static bool readACK() {
+	/**
+	 * 1) Put CLK LOW
+	 * 2) Set DATA GPIO as INPUT and wait for it to be LOW
+	 * 3) Wait 5 us
+	 * 4) Put CLK HIGH
+	 * 5) Wait 2 ms
+	 * 6) Put CLK LOW
+	 *
+	 */
+
+	bool error = false;
+	HAL_GPIO_WritePin(clk_port, clk_pin, GPIO_PIN_RESET);
+
+	configurePinAsInput(data_port, data_pin);
+
+	delay_us(5);
+
+	uint8_t maxWait = 0;
+
+	do {
+		if (maxWait > 10) {
+			// ABORT, TIMEOUT, NO ACK!
+			error = true;
+			break;
+		}
+		maxWait++;
+		delay_us(1);
+	} while (HAL_GPIO_ReadPin(data_port, data_pin));
+
+	HAL_GPIO_WritePin(clk_port, clk_pin, GPIO_PIN_SET);
+	delay_us(3);
+	HAL_GPIO_WritePin(clk_port, clk_pin, GPIO_PIN_RESET);
+	delay_us(3);
+
+	configurePinAsOutput(data_port, data_pin);
+
+	return !error;
+
+
+}
+
+
 static void writeByte(uint8_t byte) {
 	/**
 	 *
@@ -121,7 +146,9 @@ static void writeByte(uint8_t byte) {
 }
 
 
-static void writeRawData(uint8_t *rawData) {
+static bool writeRawData(uint8_t *rawData) {
+
+	bool error = false;
 
 	/**
 	 * 1) Send Start Sequence
@@ -133,16 +160,24 @@ static void writeRawData(uint8_t *rawData) {
 
 	sendStartSequence();
 	writeByte(AUTO_MODE);
-	readACK();
+	if (!readACK()) {
+		error = true;
+	}
 	sendStopSequence();
 	sendStartSequence();
 	writeByte(FIRST_DIGIT_ADDRESS);
-	readACK();
+	if (!readACK()) {
+		error = true;
+	}
 	for (uint8_t i = 0; i < 4; i++) {
 		writeByte(rawData[i]);
-		readACK();
+		if (!readACK()) {
+			error = true;
+		}
 	}
 	sendStopSequence();
+	return !error;
+
 
 }
 
@@ -165,17 +200,10 @@ bool tm1637Init(GPIO_TypeDef *clkPort, uint16_t clkPin, GPIO_TypeDef *dataPort,
 	if (dataPort == GPIOC || clkPort == GPIOC)
 		__HAL_RCC_GPIOC_CLK_ENABLE();
 
-	// Configure DATA and CLK GPIO AS OUTPUT OPEN DRAIN
+	// Configure DATA and CLK GPIO AS OUTPUT
 
-	GPIO_InitTypeDef gpio = {0};
-	gpio.Mode  = GPIO_MODE_OUTPUT_OD;
-	gpio.Pull  = GPIO_NOPULL;
-	gpio.Speed = GPIO_SPEED_FREQ_LOW;
-
-	gpio.Pin = clk_pin;
-	HAL_GPIO_Init(clk_port, &gpio);
-	gpio.Pin = data_pin;
-	HAL_GPIO_Init(data_port, &gpio);
+	configurePinAsOutput(clk_port, clk_pin);
+	configurePinAsOutput(data_port, data_pin);
 
 	HAL_GPIO_WritePin(data_port, data_pin, GPIO_PIN_SET);
 	HAL_GPIO_WritePin(clk_port, clk_pin, GPIO_PIN_SET);
@@ -186,12 +214,18 @@ bool tm1637Init(GPIO_TypeDef *clkPort, uint16_t clkPin, GPIO_TypeDef *dataPort,
 	return result;
 }
 
-void tm1637SetBrightness(uint8_t level) {
-	// TODO: allow to receive values between 0 and 7 (111)
+bool tm1637SetBrightness(uint8_t level) {
+	uint8_t value = level;
+	if (value > 7)
+		value = 7;
 	sendStartSequence();
-	writeByte(BRIGHTNESS_COMMAND);
-	readACK();
+	writeByte(value | BRIGHTNESS_MASK);
+	if (!readACK()) {
+		sendStopSequence();
+		return false;
+	}
 	sendStopSequence();
+	return true;
 
 }
 
@@ -212,7 +246,7 @@ static void numberToRawData(uint16_t number, uint8_t *rawData) {
 	}
 }
 
-void tm1637WriteNumber(uint16_t number) {
+bool tm1637WriteNumber(uint16_t number) {
 
 	/**
 	 * 1) Start Sequence
@@ -225,15 +259,15 @@ void tm1637WriteNumber(uint16_t number) {
 
 	numberToRawData(number, currentSegment);
 
-	writeRawData(currentSegment);
+	return writeRawData(currentSegment);
 
 }
 
 
-void tm1637Clear(void) {
+bool tm1637Clear(void) {
 	static const uint8_t rawData[] = { 0x00, 0x00, 0x00, 0x00 };
 
-	writeRawData(rawData);
+	return writeRawData(rawData);
 }
 
 

@@ -26,6 +26,7 @@
 #include "dht11.h"
 #include "delay.h"
 #include "app_button.h"
+#include "alarm.h"
 
 /* USER CODE END Includes */
 
@@ -56,7 +57,7 @@ TIM_HandleTypeDef htim1;
 static dht11Data_t dht11Data;
 static delay_t dht11Delay;
 static const tick_t DHT11_DELAY = 3000;
-static displayState_t programState;
+static programState_t programState;
 static btnEvent_t btnEvent;
 
 /* USER CODE END PV */
@@ -91,6 +92,8 @@ int main(void) {
 
 	/* USER CODE BEGIN Init */
 
+	HAL_Delay(1000);
+
 	/* USER CODE END Init */
 
 	/* Configure the system clock */
@@ -113,15 +116,17 @@ int main(void) {
 	 * 5) check state buttons
 	 */
 
-	dht11Init(GPIOB, GPIO_PIN_6); // D10
-	tm1637Init(GPIOA, GPIO_PIN_6, GPIOA, GPIO_PIN_5); // D12, D13
-	tm1637SetBrightness(8); // TODO: should be dynamic
+	dht11Init(GPIOB, GPIO_PIN_6);
+	tm1637Init(GPIOA, GPIO_PIN_6, GPIOA, GPIO_PIN_9);
+	bool test = tm1637SetBrightness(7);
 	programState = DISPLAY_MODE;
 
 	delayInit(&dht11Delay, DHT11_DELAY);
 
-	appButtonsInit();
-	alarmInit(GPIOB, GPIO_PIN_6);
+	appButtonsInit(GPIOB, GPIO_PIN_10, GPIOB, GPIO_PIN_5, GPIOA, GPIO_PIN_10,
+	GPIOA, GPIO_PIN_8);
+	alarmInit(GPIOA, GPIO_PIN_7);
+	delayRead(&dht11Delay); // Trigger the first read
 
 	/* USER CODE END 2 */
 
@@ -129,20 +134,21 @@ int main(void) {
 	/* USER CODE BEGIN WHILE */
 	while (1) {
 
-		// If delay of 3 seg finished, read DHT11
-		if (!delayRead(&delay)) {
-			dht11Read();
-			dht11LatestRead(*dht11Data);
-			alarmUpdate(dht11LatestRead.temperature);
-		}
-
 		switch (programState) {
 		case DISPLAY_MODE:
-			tm1637WriteNumber(dh11LatestRead.temperature);
+			// If delay of 3 seg finished, read DHT11
+			if (delayRead(&dht11Delay)) {
+				bool completed = dht11Read();
+				if (completed) {
+					dht11LatestRead(&dht11Data);
+					alarmUpdate(dht11Data.temperature);
+					tm1637WriteNumber(dht11Data.temperature);
+				}
+			}
 			break;
 		case CONFIGURE_MODE:
 			// SHOW current alarmThreshold value
-			tm1637WriteNumber(getAlarmThreshold());
+
 			break;
 		default:
 			programState = DISPLAY_MODE;
@@ -162,9 +168,11 @@ int main(void) {
 				switch (programState) {
 				case DISPLAY_MODE:
 					programState = CONFIGURE_MODE;
+					tm1637WriteNumber(getAlarmThreshold());
 					break;
 				case CONFIGURE_MODE:
 					programState = DISPLAY_MODE;
+					tm1637WriteNumber(dht11Data.temperature);
 					break;
 				default:
 					break;
@@ -174,15 +182,15 @@ int main(void) {
 				if (programState == CONFIGURE_MODE) {
 					// Increment alarm threshold if configure mode
 					incrementAlarmThreshold();
+					tm1637WriteNumber(getAlarmThreshold());
 				}
 				break;
 			case BTN_DOWN:
 				if (programState == CONFIGURE_MODE) {
 					// Decrement alarm threshold if configure mode
 					decrementAlarmThreshold();
+					tm1637WriteNumber(getAlarmThreshold());
 				}
-				break;
-			case BTN_NOEVENT:
 				break;
 			default:
 				break;

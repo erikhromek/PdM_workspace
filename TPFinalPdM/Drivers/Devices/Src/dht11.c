@@ -34,7 +34,7 @@ bool dht11Init(GPIO_TypeDef *dataPort, uint16_t dataPin) {
 
 	GPIO_InitTypeDef gpio = { 0 };
 	gpio.Mode = GPIO_MODE_OUTPUT_OD;
-	gpio.Pull = GPIO_NOPULL;
+	gpio.Pull = GPIO_PULLUP;
 	gpio.Speed = GPIO_SPEED_FREQ_LOW;
 
 	gpio.Pin = data_pin;
@@ -89,6 +89,7 @@ bool dht11Read(void) {
 		delay_us(1);
 		waitTime++;
 		if (waitTime >= 40) {
+			__enable_irq();
 			// ABORT, TIMEOUT. DID NOT GO FROM HIGH TO LOW
 			return false;
 		}
@@ -102,6 +103,7 @@ bool dht11Read(void) {
 		waitTime++;
 	}
 	if (waitTime >= 90) {
+		__enable_irq();
 		// ABORT, TIMEOUT
 		return false;
 	}
@@ -114,6 +116,7 @@ bool dht11Read(void) {
 		waitTime++;
 	}
 	if (waitTime >= 90) {
+		__enable_irq();
 		// ABORT, TIMEOUT
 		return false;
 	}
@@ -141,6 +144,7 @@ bool dht11Read(void) {
 		do {
 			waitTime++;
 			if (waitTime > 50) {
+				__enable_irq();
 				// ABORT, TIMEOUT
 				return false;
 			}
@@ -156,6 +160,7 @@ bool dht11Read(void) {
 			delay_us(1);
 			waitTime++;
 			if (waitTime > 90) {
+				__enable_irq();
 				// ABORT, TIMEOUT. MAX 70 US
 				return false;
 			}
