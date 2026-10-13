@@ -8,20 +8,18 @@
 #include "tm1637.h"
 #include "delay.h"
 
-static TIM_HandleTypeDef htim;
 static GPIO_TypeDef *clk_port;
 static uint16_t      clk_pin;
 static GPIO_TypeDef *data_port;
 static uint16_t      data_pin;
 
-/* 0xXgfedcba */
-// TODO COULD BE AN ARRAY
+/* Format of each digit: 0xXgfedcba */
 static const uint8_t DIGITS[] = { 0b00111111, 0b00000110, 0b01011011,
 		0b01001111, 0b01100110, 0b01101101, 0b01111101, 0b00000111, 0b01111111,
 		0b01101111 };
-
 #define BLANK 0b00000000
 
+// Command that configures TM1637 in AUTO ADDRESS MODE
 #define AUTO_MODE 0x40
 // TODO COULD BE AN ARRAY
 #define FIRST_DIGIT_ADDRESS 0xC0
@@ -130,7 +128,11 @@ static bool readACK() {
 
 static void writeByte(uint8_t byte) {
 	/**
-	 *
+	 * 1) We put CLK on LOW. Data must change while CLK is LOW
+	 * 2) Wait 3 us
+	 * 3) For each bit of the byte, we put DATA HIGH or LOW
+	 * 4) We put CLK on HIGH
+	 * 5) Wait 3 us
 	 */
 	for (uint8_t i = 0; i < 8; i++) {
 		HAL_GPIO_WritePin(clk_port, clk_pin, GPIO_PIN_RESET);
@@ -199,6 +201,8 @@ bool tm1637Init(GPIO_TypeDef *clkPort, uint16_t clkPin, GPIO_TypeDef *dataPort,
 		__HAL_RCC_GPIOB_CLK_ENABLE();
 	if (dataPort == GPIOC || clkPort == GPIOC)
 		__HAL_RCC_GPIOC_CLK_ENABLE();
+	if (dataPort == GPIOH || clkPort == GPIOH)
+		__HAL_RCC_GPIOH_CLK_ENABLE();
 
 	// Configure DATA and CLK GPIO AS OUTPUT
 

@@ -7,7 +7,6 @@
 
 #include <stdbool.h>
 #include "dht11.h"
-#include "stm32f4xx_hal.h"
 #include "delay.h"
 
 static GPIO_TypeDef *data_port;
@@ -27,10 +26,12 @@ bool dht11Init(GPIO_TypeDef *dataPort, uint16_t dataPin) {
 		__HAL_RCC_GPIOA_CLK_ENABLE();
 	else if (dataPort == GPIOB)
 		__HAL_RCC_GPIOB_CLK_ENABLE();
-	else
+	else if (dataPort == GPIOC)
 		__HAL_RCC_GPIOC_CLK_ENABLE();
+	else
+		__HAL_RCC_GPIOH_CLK_ENABLE();
 
-	// Configure DATA GPIO AS OUTPUT OPEN DRAIN
+	/** Configures DIO as output */
 
 	GPIO_InitTypeDef gpio = { 0 };
 	gpio.Mode = GPIO_MODE_OUTPUT_OD;
@@ -42,13 +43,16 @@ bool dht11Init(GPIO_TypeDef *dataPort, uint16_t dataPin) {
 
 	HAL_GPIO_WritePin(data_port, data_pin, GPIO_PIN_SET);
 
-	result = true; // TODO: check if GPIO or DWT can fail
+	result = true; // TODO: check if GPIO or DWT setup can fail
 
 	return result;
 
 }
 
 static bool_t validateChecksum(uint8_t *dataRaw) {
+	/**
+	 * The checksum of DHT11 frame is calculated as the sum of the first 4 bytes.
+	 */
 	return (uint8_t) (dataRaw[0] + dataRaw[1] + dataRaw[2] + dataRaw[3])
 			== dataRaw[4];
 
@@ -60,13 +64,16 @@ bool dht11Read(void) {
 	 *
 	 * Source: https://controllerstech.com/using-dht11-sensor-with-stm32/
 	 *
-	 * 1) configure pin as OUTPUT
+	 * Must disable IRQ so we get more precise clock cycle readings
+	 *
+	 * 1) configure dio as output
 	 * 2) set pin LOW
 	 * 3) wait 18-20 us
-	 * 4) set pin HIGH
-	 * 5) configure as INPUT
+	 * 4) set dio high
+	 * 5) configure dio as INPUT
 	 * 6) start reading 4 bytes
 	 * 7) verify checksum
+	 *
 	 */
 
 	const uint32_t cyclesPerUs = SystemCoreClock / 1000000U;
@@ -80,28 +87,24 @@ bool dht11Read(void) {
 
 	/**
 	 * Read start signal from DHT11:
-	 * 0) Wait the line to go from HIGH to LOW
-	 * 1) Read LOW for 80 us
-	 * 2) Read HIGH for 80 us
+	 * 0) Wait the line to go from HIGH to LOW; wait 120 us
+	 * 1) Read LOW for 80-120 us
+	 * 2) Read HIGH for 80-120 us
+	 *
+	 * 80 us did not work okay so we add 50% to the response window (120 us).
 	 */
 
 	uint32_t start = DWT->CYCCNT;
-
-
 	while (HAL_GPIO_ReadPin(data_port, data_pin) == GPIO_PIN_SET) {
-		// 100 us timeout
 		if ((DWT->CYCCNT - start) > 120U * cyclesPerUs) {
 			// ABORT, TIMEOUT. DID NOT GO FROM HIGH TO LOW
 			__enable_irq();
 			return false;
 		}
-
 	}
 
 	start = DWT->CYCCNT;
-
 	while (HAL_GPIO_ReadPin(data_port, data_pin) == GPIO_PIN_RESET) {
-		// 100 us timeout
 		if ((DWT->CYCCNT - start) > 120U * cyclesPerUs) {
 			// ABORT, TIMEOUT. DID NOT GO FROM HIGH TO LOW
 			__enable_irq();
@@ -110,7 +113,6 @@ bool dht11Read(void) {
 	}
 
 	start = DWT->CYCCNT;
-
 	while (HAL_GPIO_ReadPin(data_port, data_pin) == GPIO_PIN_SET) {
 		// 100 us timeout
 		if ((DWT->CYCCNT - start) > 120U * cyclesPerUs) {
@@ -129,6 +131,8 @@ bool dht11Read(void) {
 	 * 3) Starts again
 	 *
 	 * Starts from the MSB
+	 *
+	 * Response window is too thin so we increase it.
 	 *
 	 */
 
@@ -158,6 +162,7 @@ bool dht11Read(void) {
 			}
 		}
 		uint32_t highCycles = DWT->CYCCNT - start;
+		// Determinate if bit is 0 or 1 using cycles (47 that is between 26 and 70 us).
 		uint8_t bit = (highCycles > 47U * cyclesPerUs) ? 1 : 0;
 		currentByte = (i / 8);
 		dataRaw[currentByte] |= (bit << bitPosition);

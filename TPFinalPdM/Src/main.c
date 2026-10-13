@@ -33,6 +33,14 @@
 /* Private typedef -----------------------------------------------------------*/
 /* USER CODE BEGIN PTD */
 
+/**
+ * @brief Program possible states
+ * On configure mode, UP and DOWN buttons can be used and reading.
+ * On display mode, DHT11 gets polled every 3 seconds and the value is written
+ * on the display.
+ * Alarm can the toggled in any state.
+ *
+ */
 typedef enum {
 	DISPLAY_MODE, CONFIGURE_MODE
 } programState_t;
@@ -50,7 +58,6 @@ typedef enum {
 /* USER CODE END PM */
 
 /* Private variables ---------------------------------------------------------*/
-TIM_HandleTypeDef htim1;
 
 /* USER CODE BEGIN PV */
 
@@ -65,7 +72,6 @@ static btnEvent_t btnEvent;
 /* Private function prototypes -----------------------------------------------*/
 void SystemClock_Config(void);
 static void MX_GPIO_Init(void);
-static void MX_TIM1_Init(void);
 /* USER CODE BEGIN PFP */
 
 /* USER CODE END PFP */
@@ -105,15 +111,33 @@ int main(void) {
 
 	/* Initialize all configured peripherals */
 	MX_GPIO_Init();
-	MX_TIM1_Init();
 	/* USER CODE BEGIN 2 */
 
 	/**
-	 * 1) Initialize GPIO
+	 * Current program config:
+	 *
+	 * DHT11: PB6 / D10
+	 *
+	 * TM1637:
+	 * CLK: PA6 / D12
+	 * DIO: PA9 / D8
+	 *
+	 * Buzzer: PA7 / D11
+	 *
+	 * Buttons:
+	 * UP: PB10 / D6
+	 * DOWN: PB5 / D4
+	 * ALARM: PA10 / D2
+	 * CONFIG: PA8 / D7
+	 */
+
+	/**
+	 * 1) Initialize GPIO for buttons
 	 * 2) Initialize and configure TM1637
 	 * 3) Initialize and configure DHT11
-	 * 4) Start superloop
-	 * 5) check state buttons
+	 * 4) Configure alarm
+	 * 5) Start superloop
+	 * 6) check buttons state
 	 */
 
 	dht11Init(GPIOB, GPIO_PIN_6);
@@ -136,7 +160,7 @@ int main(void) {
 
 		switch (programState) {
 		case DISPLAY_MODE:
-			// If delay of 3 seg finished, read DHT11
+			// If delay of 3 seconds finished, read DHT11
 			if (delayRead(&dht11Delay)) {
 				bool completed = dht11Read();
 				if (completed) {
@@ -147,8 +171,10 @@ int main(void) {
 			}
 			break;
 		case CONFIGURE_MODE:
-			// SHOW current alarmThreshold value
-
+			/*
+			 * Current alarm threshold gets set when entering the state and it
+			 * gets updated when UP and DOWN buttons so it is not needed here.
+			 */
 			break;
 		default:
 			programState = DISPLAY_MODE;
@@ -160,11 +186,11 @@ int main(void) {
 			btnEvent = getEventButton();
 			switch (btnEvent) {
 			case BTN_ALARM:
-				// toggle alarm
+				// Alarm button only toggles alarm ON/OFF
 				alarmToggle();
 				break;
 			case BTN_CONFIG:
-				// Go to configure
+				// Config button swaps program state
 				switch (programState) {
 				case DISPLAY_MODE:
 					programState = CONFIGURE_MODE;
@@ -246,49 +272,6 @@ void SystemClock_Config(void) {
 	if (HAL_RCC_ClockConfig(&RCC_ClkInitStruct, FLASH_LATENCY_2) != HAL_OK) {
 		Error_Handler();
 	}
-}
-
-/**
- * @brief TIM1 Initialization Function
- * @param None
- * @retval None
- */
-static void MX_TIM1_Init(void) {
-
-	/* USER CODE BEGIN TIM1_Init 0 */
-
-	/* USER CODE END TIM1_Init 0 */
-
-	TIM_ClockConfigTypeDef sClockSourceConfig = { 0 };
-	TIM_MasterConfigTypeDef sMasterConfig = { 0 };
-
-	/* USER CODE BEGIN TIM1_Init 1 */
-
-	/* USER CODE END TIM1_Init 1 */
-	htim1.Instance = TIM1;
-	htim1.Init.Prescaler = 72 - 1;
-	htim1.Init.CounterMode = TIM_COUNTERMODE_UP;
-	htim1.Init.Period = 65535;
-	htim1.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
-	htim1.Init.RepetitionCounter = 0;
-	htim1.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
-	if (HAL_TIM_Base_Init(&htim1) != HAL_OK) {
-		Error_Handler();
-	}
-	sClockSourceConfig.ClockSource = TIM_CLOCKSOURCE_INTERNAL;
-	if (HAL_TIM_ConfigClockSource(&htim1, &sClockSourceConfig) != HAL_OK) {
-		Error_Handler();
-	}
-	sMasterConfig.MasterOutputTrigger = TIM_TRGO_RESET;
-	sMasterConfig.MasterSlaveMode = TIM_MASTERSLAVEMODE_DISABLE;
-	if (HAL_TIMEx_MasterConfigSynchronization(&htim1, &sMasterConfig)
-			!= HAL_OK) {
-		Error_Handler();
-	}
-	/* USER CODE BEGIN TIM1_Init 2 */
-
-	/* USER CODE END TIM1_Init 2 */
-
 }
 
 /**

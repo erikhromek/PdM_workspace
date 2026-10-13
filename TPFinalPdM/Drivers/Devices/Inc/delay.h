@@ -2,14 +2,14 @@
 #define API_INC_API_DELAY_H_
 
 #include "stm32f4xx_hal.h"
-#include "stdint.h"
-#include "stdbool.h"
+#include <stdint.h>
+#include <stdbool.h>
 
 typedef uint32_t tick_t;
 typedef bool bool_t;
 
 /**
- * @brief Delay no bloqueante
+ * @brief Non-blocking delay
  */
 typedef struct {
 	tick_t startTime;
@@ -18,43 +18,40 @@ typedef struct {
 } delay_t;
 
 /**
- * @brief Inicializa una variable delay_t para usar como timer no bloqueante
+ * @brief Initializes delay_t variable to be used as a non-blocking dleay
  *
- * @param delay   	Puntero a variable del tipo delay_t
- * @param duration 	Duración inicial del delay (en milisegundos)
+ * @param delay   	Pointer to delay_t variable
+ * @param duration 	Delay duration (miliseconds)
  *
  */
 void delayInit(delay_t *delay, tick_t duration);
 
 
 /**
- * @brief Lee el estado del delay y lo inicializa si no empezó
+ * @brief Reads the state of the delay and starts it if not running
  *
- * @param delay   	Puntero a variable del tipo delay_t
+ * @param delay   	Pointer to delay_t variable
  *
- *	@return Devuelve true si el delay terminó y false si no.
- *	Si no inició todavía, devuelve false también.
- *	Si el delay no está inicializado, devuelve false.
+ *	@return Returns true if delay finished and false if not.
  */
 bool_t delayRead(delay_t *delay);
 
 /**
- * @brief Modifica el valor de la duración del delay
+ * @brief Modified the duration of the delay
  *
- * @param delay   	Puntero a variable del tipo delay_t
- * @param duration 	Duración del delay (en milisegundos)
+ * @param delay   	Pointer to delay_t variable
+ * @param duration 	Delay duration (miliseconds)
  *
  */
 void delayWrite(delay_t *delay, tick_t duration);
 
 /**
- * @brief Indica si un delay está corriendo
+ * @brief Indicates if delay is running
  *
- * @param delay   	Puntero a variable del tipo delay_t
+ * @param delay   	Pointer to delay_t variable
  *
- *	@return Devuelve true si el delay todavía está corriendo y false en caso
- *	contrario.
- *	Si el delay no está inicializado, devuelve false.
+ *	@return Returns true if delay is still running and false if not.
+ *
  */
 bool_t delayIsRunning(delay_t *delay);
 

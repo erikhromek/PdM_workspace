@@ -63,6 +63,9 @@ void appButtonsInit(GPIO_TypeDef *upPort, uint16_t upPin,
 	if (upPort == GPIOC || downPort == GPIOC || alarmPort == GPIOC
 			|| cfgPort == GPIOC)
 		__HAL_RCC_GPIOC_CLK_ENABLE();
+	if (upPort == GPIOH || downPort == GPIOH || alarmPort == GPIOH
+			|| cfgPort == GPIOH)
+		__HAL_RCC_GPIOH_CLK_ENABLE();
 
 	GPIO_InitTypeDef gpio = { 0 };
 	gpio.Mode = GPIO_MODE_INPUT;
