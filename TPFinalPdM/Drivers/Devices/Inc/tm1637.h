@@ -23,7 +23,7 @@ bool tm1637Init(GPIO_TypeDef *clkPort, uint16_t clkPin, GPIO_TypeDef *dataPort,
  * @fn bool tm1637SetBrightness(uint8_t)
  * @brief Sets the brightness of the TM1637 module.
  *
- * @param level	Number between 0 and 7.
+ * @param level	Number between 0 and 7. If number is greater than 7, it becomes 7.
  * @return	Returns true if the display acknowledged the command.
  */
 bool tm1637SetBrightness(uint8_t level);
@@ -32,7 +32,7 @@ bool tm1637SetBrightness(uint8_t level);
  * @fn bool tm1637WriteNumber(uint16_t)
  * @brief Writes a four digit max number.
  *
- * @param number	Number to write.
+ * @param number	Number to write. If number is greater than 9999, it becomes 9999.
  * @return	Returns true if the display acknowledged the command.
  */
 bool tm1637WriteNumber(uint16_t number);

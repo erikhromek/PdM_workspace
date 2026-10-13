@@ -149,6 +149,8 @@ static void writeByte(uint8_t byte) {
 
 
 static bool writeRawData(uint8_t *rawData) {
+	if (rawData == NULL)
+		return false;
 
 	bool error = false;
 

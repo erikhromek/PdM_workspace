@@ -142,7 +142,7 @@ int main(void) {
 
 	dht11Init(GPIOB, GPIO_PIN_6);
 	tm1637Init(GPIOA, GPIO_PIN_6, GPIOA, GPIO_PIN_9);
-	bool test = tm1637SetBrightness(7);
+	tm1637SetBrightness(7);
 	programState = DISPLAY_MODE;
 
 	delayInit(&dht11Delay, DHT11_DELAY);
@@ -165,7 +165,6 @@ int main(void) {
 				bool completed = dht11Read();
 				if (completed) {
 					dht11LatestRead(&dht11Data);
-					alarmUpdate(dht11Data.temperature);
 					tm1637WriteNumber(dht11Data.temperature);
 				}
 			}
@@ -182,6 +181,7 @@ int main(void) {
 		}
 
 		buttonsStateUpdate();
+		alarmUpdate(dht11Data.temperature);
 		if (buttonPressed()) {
 			btnEvent = getEventButton();
 			switch (btnEvent) {

@@ -66,7 +66,7 @@ void delayUsInit(void);
 /**
  * @fn void delay_us(uint32_t us)
  *
- * @brief Waits for the specified microseconds
+ * @brief Waits for the specified microseconds. delayUsInit() must have been called before.
  *
  * @param duration	Delay duration (in microseconds)
  *

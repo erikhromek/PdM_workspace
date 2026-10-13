@@ -50,6 +50,7 @@ uint8_t getAlarmThreshold();
  * @brief Enables or disables the alarm.
  *
  */
+void alarmToggle(void);
 
 /**
  * @fn void alarmUpdate(uint8_t)

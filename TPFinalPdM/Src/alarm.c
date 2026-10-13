@@ -29,8 +29,10 @@ void alarmInit(GPIO_TypeDef *buzzerPort, uint16_t buzzerPin) {
 		__HAL_RCC_GPIOB_CLK_ENABLE();
 	else if (buzzerPort == GPIOC)
 		__HAL_RCC_GPIOC_CLK_ENABLE();
-	else
+	else if (buzzerPort == GPIOH)
 		__HAL_RCC_GPIOH_CLK_ENABLE();
+	else
+		return;
 
 	GPIO_InitTypeDef gpio = { 0 };
 	gpio.Mode = GPIO_MODE_OUTPUT_PP;
@@ -46,9 +48,8 @@ void alarmInit(GPIO_TypeDef *buzzerPort, uint16_t buzzerPin) {
 	alarmState = ALARM_DISABLED;
 }
 void incrementAlarmThreshold() {
-	alarmThreshold++;
-	if (alarmThreshold > 99)
-		alarmThreshold = 0;
+	if (alarmThreshold < 99)
+		alarmThreshold++;
 }
 void decrementAlarmThreshold() {
 	if (alarmThreshold > 0)
@@ -57,7 +58,7 @@ void decrementAlarmThreshold() {
 uint8_t getAlarmThreshold() {
 	return alarmThreshold;
 }
-void alarmToggle() {
+void alarmToggle(void) {
 	if (alarmState == ALARM_CONFIGURED || alarmState == ALARM_ON)
 		alarmState = ALARM_DISABLED;
 	else if (alarmState == ALARM_DISABLED)

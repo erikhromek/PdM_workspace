@@ -9,6 +9,8 @@
 #include "delay.h"
 
 void delayInit(delay_t *delay, tick_t duration) {
+	if (delay == NULL)
+		return;
 	delay->startTime = 0;
 	delay->duration = duration;
 	delay->running = false;

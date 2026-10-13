@@ -28,8 +28,10 @@ bool dht11Init(GPIO_TypeDef *dataPort, uint16_t dataPin) {
 		__HAL_RCC_GPIOB_CLK_ENABLE();
 	else if (dataPort == GPIOC)
 		__HAL_RCC_GPIOC_CLK_ENABLE();
-	else
+	else if (dataPort == GPIOH)
 		__HAL_RCC_GPIOH_CLK_ENABLE();
+	else
+		return false;
 
 	/** Configures DIO as output */
 
@@ -188,6 +190,8 @@ bool dht11Read(void) {
 }
 
 void dht11LatestRead(dht11Data_t *data) {
+	if (data == NULL)
+		return;
 	data->temperature = latestRead.temperature;
 	data->humidity = latestRead.humidity;
 }
