@@ -65,7 +65,7 @@ void alarmToggle(void) {
 		alarmState = ALARM_CONFIGURED;
 
 }
-// Actualiza la MEF de la alarma
+
 void alarmUpdate(uint8_t temperature) {
 	switch (alarmState) {
 	case ALARM_DISABLED:

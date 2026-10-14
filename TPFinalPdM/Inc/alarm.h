@@ -58,6 +58,6 @@ void alarmToggle(void);
  *
  * @param temperature	temperature in °C.
  */
-void alarmUpdate(uint8_t temperature); // Actualiza la MEF de la alarma
+void alarmUpdate(uint8_t temperature);
 
 #endif /* ALARM_H_ */
