@@ -23,7 +23,7 @@
 /* USER CODE BEGIN Includes */
 
 #include "tm1637.h"
-#include "dht11.h"
+#include "DHT11/Inc/dht11.h"
 #include "delay.h"
 #include "app_button.h"
 #include "alarm.h"
@@ -140,7 +140,8 @@ int main(void) {
 	 * 6) check buttons state
 	 */
 
-	dht11Init(GPIOB, GPIO_PIN_6);
+	//dht11Init(GPIOB, GPIO_PIN_6);
+	dht11Init();
 	tm1637Init(GPIOA, GPIO_PIN_6, GPIOA, GPIO_PIN_9);
 	tm1637SetBrightness(7);
 	programState = DISPLAY_MODE;

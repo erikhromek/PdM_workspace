@@ -271,7 +271,7 @@ bool tm1637WriteNumber(uint16_t number) {
 
 
 bool tm1637Clear(void) {
-	static const uint8_t rawData[] = { 0x00, 0x00, 0x00, 0x00 };
+	static uint8_t rawData[] = { 0x00, 0x00, 0x00, 0x00 };
 
 	return writeRawData(rawData);
 }

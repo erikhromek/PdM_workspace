@@ -2,7 +2,7 @@
 #define DHT11_H_
 
 #include <stdbool.h>
-#include "stm32f4xx_hal.h"
+#include <stdint.h>
 
 /**
  * @brief DHT11 data structure
@@ -14,15 +14,11 @@ typedef struct {
 } dht11Data_t;
 
 /**
- * @fn void dht11Init()
- * @brief Initializes DHT11 on specified port
+ * @fn void dht11Init(void)
+ * @brief Configure and initialize DHT11.
  *
- * @param dataPort	Pointer to GPIO port for DIO
- * @param dataPin	GPIO number to use as DIO
- * @return Returns true if there have not happened errors in the configuration.
  */
-
-bool dht11Init(GPIO_TypeDef *dataPort, uint16_t dataPin);
+void dht11Init(void);
 
 /**
  * @fn bool dht11Read(void)
