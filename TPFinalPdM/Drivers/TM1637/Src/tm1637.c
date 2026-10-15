@@ -6,12 +6,8 @@
  */
 
 #include "tm1637.h"
-#include "delay.h"
-
-static GPIO_TypeDef *clk_port;
-static uint16_t      clk_pin;
-static GPIO_TypeDef *data_port;
-static uint16_t      data_pin;
+#include "tm1637_port.h"
+#include "stddef.h"
 
 /* Format of each digit: 0xXgfedcba */
 static const uint8_t DIGITS[] = { 0b00111111, 0b00000110, 0b01011011,
@@ -31,23 +27,6 @@ static const uint8_t DIGITS[] = { 0b00111111, 0b00000110, 0b01011011,
 
 static uint8_t currentSegment[] = { 0, 0, 0, 0 };
 
-static void configurePinAsOutput(GPIO_TypeDef *port, uint16_t pin) {
-	GPIO_InitTypeDef g = {0};
-	g.Pin = pin;
-	g.Mode = GPIO_MODE_OUTPUT_PP;
-	g.Pull = GPIO_NOPULL;
-	g.Speed = GPIO_SPEED_FREQ_HIGH;
-	HAL_GPIO_Init(port, &g);
-}
-
-static void configurePinAsInput(GPIO_TypeDef *port, uint16_t pin) {
-	GPIO_InitTypeDef g = {0};
-	g.Pin = pin;
-	g.Mode = GPIO_MODE_INPUT;
-	g.Pull = GPIO_PULLUP;
-	HAL_GPIO_Init(port, &g);
-}
-
 static void sendStartSequence() {
 	/**
 	 * 1) Put CLK HIGH
@@ -56,10 +35,10 @@ static void sendStartSequence() {
 	 * 4) Put DATA LOW
 	 */
 
-	HAL_GPIO_WritePin(clk_port, clk_pin, GPIO_PIN_SET);
-	HAL_GPIO_WritePin(data_port, data_pin, GPIO_PIN_SET);
-	delay_us(2);
-	HAL_GPIO_WritePin(data_port, data_pin, GPIO_PIN_RESET);
+	tm1637PortClkWrite(true);
+	tm1637PortDataWrite(true);
+	tm1637PortDelayUs(2);
+	tm1637PortDataWrite(false);
 
 }
 
@@ -74,13 +53,13 @@ static void sendStopSequence() {
 	 * 7) Put DATA HIGH
 	 */
 
-	HAL_GPIO_WritePin(clk_port, clk_pin, GPIO_PIN_RESET);
-	delay_us(2);
-	HAL_GPIO_WritePin(data_port, data_pin, GPIO_PIN_RESET);
-	delay_us(2);
-	HAL_GPIO_WritePin(clk_port, clk_pin, GPIO_PIN_SET);
-	delay_us(2);
-	HAL_GPIO_WritePin(data_port, data_pin, GPIO_PIN_SET);
+	tm1637PortClkWrite(false);
+	tm1637PortDelayUs(2);
+	tm1637PortDataWrite(false);
+	tm1637PortDelayUs(2);
+	tm1637PortClkWrite(true);
+	tm1637PortDelayUs(2);
+	tm1637PortDataWrite(true);
 }
 
 static bool readACK() {
@@ -95,11 +74,11 @@ static bool readACK() {
 	 */
 
 	bool error = false;
-	HAL_GPIO_WritePin(clk_port, clk_pin, GPIO_PIN_RESET);
 
-	configurePinAsInput(data_port, data_pin);
+	tm1637PortClkWrite(false);
+	tm1637PortDataInput();
 
-	delay_us(5);
+	tm1637PortDelayUs(5);
 
 	uint8_t maxWait = 0;
 
@@ -110,21 +89,19 @@ static bool readACK() {
 			break;
 		}
 		maxWait++;
-		delay_us(1);
-	} while (HAL_GPIO_ReadPin(data_port, data_pin));
+		tm1637PortDelayUs(1);
+	} while (tm1637PortDataRead());
 
-	HAL_GPIO_WritePin(clk_port, clk_pin, GPIO_PIN_SET);
-	delay_us(3);
-	HAL_GPIO_WritePin(clk_port, clk_pin, GPIO_PIN_RESET);
-	delay_us(3);
+	tm1637PortClkWrite(true);
+	tm1637PortDelayUs(3);
+	tm1637PortClkWrite(false);
+	tm1637PortDelayUs(3);
 
-	configurePinAsOutput(data_port, data_pin);
+	tm1637PortDataOutput();
 
 	return !error;
 
-
 }
-
 
 static void writeByte(uint8_t byte) {
 	/**
@@ -135,18 +112,17 @@ static void writeByte(uint8_t byte) {
 	 * 5) Wait 3 us
 	 */
 	for (uint8_t i = 0; i < 8; i++) {
-		HAL_GPIO_WritePin(clk_port, clk_pin, GPIO_PIN_RESET);
-		delay_us(3);
+		tm1637PortClkWrite(false);
+		tm1637PortDelayUs(3);
 		if (byte & 0x01) {
-			HAL_GPIO_WritePin(data_port, data_pin, GPIO_PIN_SET);
+			tm1637PortDataWrite(true);
 		} else
-			HAL_GPIO_WritePin(data_port, data_pin, GPIO_PIN_RESET);
-		HAL_GPIO_WritePin(clk_port, clk_pin, GPIO_PIN_SET);
-		delay_us(3);
+			tm1637PortDataWrite(false);
+		tm1637PortClkWrite(true);
+		tm1637PortDelayUs(3);
 		byte = byte >> 1; // Shift next bit to the right
 	}
 }
-
 
 static bool writeRawData(uint8_t *rawData) {
 	if (rawData == NULL)
@@ -182,42 +158,10 @@ static bool writeRawData(uint8_t *rawData) {
 	sendStopSequence();
 	return !error;
 
-
 }
 
-
-bool tm1637Init(GPIO_TypeDef *clkPort, uint16_t clkPin, GPIO_TypeDef *dataPort,
-		uint16_t dataPin) {
-	bool result = false;
-
-	delayUsInit();
-
-	clk_port = clkPort;
-	clk_pin = clkPin;
-	data_port = dataPort;
-	data_pin = dataPin;
-
-	if (dataPort == GPIOA || clkPort == GPIOA)
-		__HAL_RCC_GPIOA_CLK_ENABLE();
-	if (dataPort == GPIOB || clkPort == GPIOB)
-		__HAL_RCC_GPIOB_CLK_ENABLE();
-	if (dataPort == GPIOC || clkPort == GPIOC)
-		__HAL_RCC_GPIOC_CLK_ENABLE();
-	if (dataPort == GPIOH || clkPort == GPIOH)
-		__HAL_RCC_GPIOH_CLK_ENABLE();
-
-	// Configure DATA and CLK GPIO AS OUTPUT
-
-	configurePinAsOutput(clk_port, clk_pin);
-	configurePinAsOutput(data_port, data_pin);
-
-	HAL_GPIO_WritePin(data_port, data_pin, GPIO_PIN_SET);
-	HAL_GPIO_WritePin(clk_port, clk_pin, GPIO_PIN_SET);
-
-	result = true; // TODO: check if GPIO or DWT can fail
-
-
-	return result;
+void tm1637Init(void) {
+	tm1637PortInit();
 }
 
 bool tm1637SetBrightness(uint8_t level) {
@@ -240,7 +184,7 @@ static void numberToRawData(uint16_t number, uint8_t *rawData) {
 	 * Number can be up to 9999. We start dividing each number by 10 up to
 	 * four times to get each digit
 	 */
-	static const uint16_t divisors[4] = {1000, 100, 10, 1};
+	static const uint16_t divisors[4] = { 1000, 100, 10, 1 };
 
 	if (rawData == NULL)
 		return;
@@ -269,11 +213,9 @@ bool tm1637WriteNumber(uint16_t number) {
 
 }
 
-
 bool tm1637Clear(void) {
 	static uint8_t rawData[] = { 0x00, 0x00, 0x00, 0x00 };
 
 	return writeRawData(rawData);
 }
-
 

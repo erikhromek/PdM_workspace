@@ -6,6 +6,7 @@
  *      Author: Erik Hromek
  */
 
+#include "stm32f4xx_hal.h"
 #include "delay.h"
 
 void delayInit(delay_t *delay, tick_t duration) {

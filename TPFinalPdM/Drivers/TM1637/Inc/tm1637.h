@@ -3,22 +3,13 @@
 
 #include <stdint.h>
 #include <stdbool.h>
-#include "stm32f4xx_hal.h"
 
 /**
- * @fn bool tm1637Init(GPIO_TypeDef*, uint16_t, GPIO_TypeDef*, uint16_t)
- * @brief
+ * @fn void tm1637Init()
+ * @brief Configures and initializes TM1637 display
  *
- * @pre
- * @post
- * @param clkPort	Pointer to GPIO port for CLK
- * @param clkPin	GPIO number to use as CLK
- * @param dataPort	Pointer to GPIO port for DIO
- * @param dataPin	GPIO number to use as DIO
- * @return	Returns true if there have not happened errors in the configuration.
  */
-bool tm1637Init(GPIO_TypeDef *clkPort, uint16_t clkPin, GPIO_TypeDef *dataPort,
-		uint16_t dataPin);
+void tm1637Init(void);
 /**
  * @fn bool tm1637SetBrightness(uint8_t)
  * @brief Sets the brightness of the TM1637 module.

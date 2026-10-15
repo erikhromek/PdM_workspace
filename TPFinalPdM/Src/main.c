@@ -142,7 +142,7 @@ int main(void) {
 
 	//dht11Init(GPIOB, GPIO_PIN_6);
 	dht11Init();
-	tm1637Init(GPIOA, GPIO_PIN_6, GPIOA, GPIO_PIN_9);
+	tm1637Init();
 	tm1637SetBrightness(7);
 	programState = DISPLAY_MODE;
 

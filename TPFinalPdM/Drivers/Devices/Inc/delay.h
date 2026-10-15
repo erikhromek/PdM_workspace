@@ -1,7 +1,6 @@
 #ifndef API_INC_API_DELAY_H_
 #define API_INC_API_DELAY_H_
 
-#include "stm32f4xx_hal.h"
 #include <stdint.h>
 #include <stdbool.h>
 

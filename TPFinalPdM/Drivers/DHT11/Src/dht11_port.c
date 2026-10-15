@@ -49,16 +49,16 @@ void dht11PortDataHigh(void) {
 	HAL_GPIO_WritePin(data_port, data_pin, GPIO_PIN_SET);
 }
 
-int32_t  dht11PortWaitWhile(bool level, uint32_t timeoutUs) {
+int32_t dht11PortWaitWhile(bool level, uint32_t timeoutUs) {
 	const uint32_t cyclesPerUs = SystemCoreClock / 1000000U;
 	uint32_t start = DWT->CYCCNT;
-		while (HAL_GPIO_ReadPin(data_port, data_pin) == level) {
-			if ((DWT->CYCCNT - start) > timeoutUs * cyclesPerUs) {
-				// ABORT, TIMEOUT. DID NOT GO FROM HIGH TO LOW
-				return -1;
-			}
+	while (HAL_GPIO_ReadPin(data_port, data_pin) == level) {
+		if ((DWT->CYCCNT - start) > timeoutUs * cyclesPerUs) {
+			// ABORT, TIMEOUT. DID NOT GO FROM HIGH TO LOW
+			return -1;
 		}
-	return start;
+	}
+	return (int32_t) ((DWT->CYCCNT - start) / cyclesPerUs);
 }
 
 void dht11PortDelayMs(uint32_t ms) {

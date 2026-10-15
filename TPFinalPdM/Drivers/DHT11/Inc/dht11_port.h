@@ -19,13 +19,11 @@ void dht11PortCriticalEnter(void);
 void dht11PortCriticalExit(void);
 
 /**
- * @fn int32_t dht11PortWaitWhile(bool, uint32_t)
- * @brief
+ * @fn int32_t dht11PortWaitWhile(bool level, uint32_t)
+ * @brief Waits for the Data pin to change its level
  *
- * @pre
- * @post
- * @param level
- * @param timeoutUs
+ * @param level Level of Pin to check (high or low)
+ * @param timeoutUs Maximun timeout in us
  * @return	us elapsed or -1 if timeout
  */
 int32_t  dht11PortWaitWhile(bool level, uint32_t timeoutUs);
